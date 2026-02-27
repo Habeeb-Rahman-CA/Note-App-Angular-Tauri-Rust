@@ -2,10 +2,16 @@
   <div style="padding: 20px">
     <h2>Tauri Notes App</h2>
 
-    <textarea [(ngModel)]="noteContent" rows="10" cols="50"></textarea>
+    <input [(ngModel)]="newNote" placeholder="Write note..." />
 
-    <br /><br />
+    <button (click)="addNote()">Add</button>
 
-    <button (click)="saveNote()">Save</button>
+    <hr />
+
+    <div *ngFor="let note of notes">
+      <p>{{ note.content }}</p>
+      <button (click)="deleteNote(note.id)">Delete</button>
+      <hr />
+    </div>
   </div>
 </main>
