@@ -13,7 +13,7 @@
   <div style="padding: 20px">
     <h2>Tauri Notes App</h2>
 
-    <input [(ngModel)]="newNote" placeholder="Write note..." />
+    <input [(ngModel)]="newNote" (ngModelChange)="saveTrigger.next()" placeholder="Write note..." />
 
     <button (click)="addNote()">Add</button>
 

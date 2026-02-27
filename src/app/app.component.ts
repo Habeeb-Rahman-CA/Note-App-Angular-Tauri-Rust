@@ -4,6 +4,8 @@ import { RouterOutlet } from '@angular/router';
 import { invoke } from "@tauri-apps/api/core";
 import { FormsModule } from '@angular/forms';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { debounceTime, Subject } from 'rxjs';
+
 
 interface Note {
   id: number;
@@ -21,9 +23,17 @@ export class AppComponent {
   notes: Note[] = [];
   newNote = '';
 
+  saveTrigger = new Subject<void>();
+
   async ngOnInit() {
     const data = await invoke<string>('read_notes');
     this.notes = JSON.parse(data);
+
+    this.saveTrigger
+      .pipe(debounceTime(500))
+      .subscribe(() => {
+        this.saveNotes();
+      });
   }
 
   async saveNotes() {
@@ -42,13 +52,12 @@ export class AppComponent {
 
     this.notes.push(note);
     this.newNote = '';
-
-    await this.saveNotes();
+    this.saveTrigger.next();
   }
 
   async deleteNote(id: number) {
     this.notes = this.notes.filter(n => n.id !== id);
-    await this.saveNotes();
+    this.saveTrigger.next();
   }
 
   async minimize() {
