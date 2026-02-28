@@ -126,6 +126,8 @@
       <div class="shortcut-item"><span>Ctrl + F</span> Open Search</div>
       <div class="shortcut-item"><span>Ctrl + B</span> Open History / Bin</div>
       <div class="shortcut-item"><span>Ctrl + P</span> Pin / Unpin</div>
+      <div class="shortcut-item"><span>Ctrl + R</span> Restore</div>
+      <div class="shortcut-item"><span>Ctrl + Shift + C</span> Clear All</div>
       <div class="shortcut-item"><span> ↑ / ↓ </span> Navigate</div>
       <div class="shortcut-item"><span>Ctrl + E</span> Edit</div>
       <div class="shortcut-item"><span>Ctrl + S</span> Save</div>
@@ -172,7 +174,6 @@
   <div class="help-content bin-content" (click)="$event.stopPropagation()">
     <div class="bin-header">
       <h2>History / Trash</h2>
-      <button class="text-btn danger" *ngIf="binNotes.length > 0" (click)="clearBin()">Clear All</button>
     </div>
 
     <div class="search-results scrollable" *ngIf="binNotes.length > 0">
@@ -182,20 +183,22 @@
           <p class="bin-text">{{ note.content }}</p>
           <span class="bin-date">{{ formatDate(note.timestamp) }}</span>
         </div>
-        <div class="bin-actions" *ngIf="selectedBinNoteId === note.id">
-          <button class="icon-btn success" (click)="restoreNote(note.id)" title="Restore">
-            <svg viewBox="0 0 24 24">
-              <path
-                d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L8.78,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3Z" />
-            </svg>
-          </button>
-          <button class="icon-btn danger" (click)="permanentDeleteNote(note.id)" title="Delete Permanently">
-            <svg viewBox="0 0 24 24">
-              <path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" />
-            </svg>
-          </button>
+
+        <!-- Individual Restoration Confirmation -->
+        <div class="delete-overlay" *ngIf="isConfirmingRestoreId === note.id">
+          <span>Restore?</span>
+        </div>
+
+        <!-- Individual Permanent Deletion Confirmation -->
+        <div class="delete-overlay" *ngIf="isConfirmingBinDeleteId === note.id">
+          <span>Delete Forever?</span>
         </div>
       </div>
+    </div>
+
+    <!-- Bulk Clear Confirmation -->
+    <div class="delete-overlay bulk-clear-overlay" *ngIf="isConfirmingClearAll">
+      <span>Clear all history?</span>
     </div>
 
     <div class="empty-state" *ngIf="binNotes.length === 0">

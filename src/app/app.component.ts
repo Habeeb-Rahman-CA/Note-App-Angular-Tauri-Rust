@@ -42,6 +42,9 @@ export class AppComponent implements AfterViewChecked, OnInit {
   searchQuery = '';
   binNotes: Note[] = [];
   selectedBinNoteId: number | null = null;
+  isConfirmingBinDeleteId: number | null = null;
+  isConfirmingRestoreId: number | null = null;
+  isConfirmingClearAll = false;
   @ViewChild('searchInput') searchInput?: ElementRef;
   private searchNeedsFocus = false;
 
@@ -144,6 +147,9 @@ export class AppComponent implements AfterViewChecked, OnInit {
       if (this.showBin) {
         this.showHelp = false;
         this.showSearch = false;
+        this.isConfirmingBinDeleteId = null;
+        this.isConfirmingRestoreId = null;
+        this.isConfirmingClearAll = false;
         this.loadBinNotes();
       }
     }
@@ -191,6 +197,13 @@ export class AppComponent implements AfterViewChecked, OnInit {
 
     // Escape Handler
     if (event.key === 'Escape') {
+      if (this.showBin && (this.isConfirmingBinDeleteId || this.isConfirmingRestoreId || this.isConfirmingClearAll)) {
+        this.isConfirmingBinDeleteId = null;
+        this.isConfirmingRestoreId = null;
+        this.isConfirmingClearAll = false;
+        event.preventDefault();
+        return;
+      }
       if (this.showHelp || this.showSearch || this.showBin) {
         this.showHelp = false;
         this.showSearch = false;
@@ -202,8 +215,51 @@ export class AppComponent implements AfterViewChecked, OnInit {
 
     // Arrow keys for navigation
     if (this.showBin) {
-      if (this.binNotes.length > 0) {
+      // Clear All Shortcut (Ctrl + Shift + C)
+      if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'c') {
+        event.preventDefault();
+        this.isConfirmingClearAll = true;
+        return;
+      }
+
+      // Enter for Bin confirmations
+      if (event.key === 'Enter') {
+        if (this.isConfirmingBinDeleteId !== null) {
+          event.preventDefault();
+          this.permanentDeleteNote(this.isConfirmingBinDeleteId);
+          this.isConfirmingBinDeleteId = null;
+          return;
+        }
+        if (this.isConfirmingRestoreId !== null) {
+          event.preventDefault();
+          this.restoreNote(this.isConfirmingRestoreId);
+          this.isConfirmingRestoreId = null;
+          return;
+        }
+        if (this.isConfirmingClearAll) {
+          event.preventDefault();
+          this.clearBin();
+          this.isConfirmingClearAll = false;
+          return;
+        }
+      }
+
+      if (this.binNotes.length > 0 && !this.isConfirmingBinDeleteId && !this.isConfirmingRestoreId && !this.isConfirmingClearAll) {
         let currentIndex = this.binNotes.findIndex(n => n.id === this.selectedBinNoteId);
+
+        // Ctrl + D (Permanent Delete)
+        if (event.ctrlKey && event.key.toLowerCase() === 'd') {
+          event.preventDefault();
+          this.isConfirmingBinDeleteId = this.selectedBinNoteId;
+          return;
+        }
+        // Ctrl + R (Restore)
+        if (event.ctrlKey && event.key.toLowerCase() === 'r') {
+          event.preventDefault();
+          this.isConfirmingRestoreId = this.selectedBinNoteId;
+          return;
+        }
+
         if (event.key === 'ArrowDown') {
           event.preventDefault();
           const nextIndex = (currentIndex + 1) % this.binNotes.length;

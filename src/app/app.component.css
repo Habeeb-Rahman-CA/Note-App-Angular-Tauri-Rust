@@ -273,7 +273,7 @@ button.primary:hover {
 .notes-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 4px;
 }
 
 .note-card {
@@ -328,7 +328,7 @@ button.primary:hover {
 .note-content {
   font-size: 14px;
   white-space: pre-wrap;
-  margin-bottom: 8px;
+  margin: 0px;
   flex-grow: 1;
 }
 
@@ -455,7 +455,7 @@ button.primary:hover {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgb(255, 255, 255);
+  background: rgba(255, 255, 255, 0.5);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -472,6 +472,8 @@ button.primary:hover {
   width: 100%;
   max-width: 400px;
   text-align: center;
+  position: relative;
+  overflow: hidden;
 }
 
 .help-content h2 {
@@ -482,7 +484,7 @@ button.primary:hover {
 .shortcut-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   margin-bottom: 32px;
   text-align: left;
 }
@@ -615,14 +617,17 @@ button.primary:hover {
 }
 
 .bin-item {
-  padding: 16px;
+  padding: 8px;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  gap: 4px;
   transition: all 0.2s;
+  border-radius: 8px;
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
 }
 
 .bin-item:last-child {
@@ -630,8 +635,7 @@ button.primary:hover {
 }
 
 .bin-item.selected {
-  background: var(--hover-color);
-  box-shadow: inset 4px 0 0 0 var(--text-color);
+  background: #f5f5f5;
 }
 
 .bin-item-content {
@@ -640,7 +644,7 @@ button.primary:hover {
 }
 
 .bin-text {
-  margin: 0 0 6px 0;
+  margin: 0;
   font-size: 14px;
   white-space: nowrap;
   overflow: hidden;
@@ -685,4 +689,25 @@ button.primary:hover {
   background: rgba(231, 76, 60, 0.1);
   color: #e74c3c;
   border-color: #e74c3c;
+}
+
+.bulk-clear-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #0a0a0a;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.search-hint.bin-hint {
+  margin-top: 15px;
+  opacity: 0.6;
 }
