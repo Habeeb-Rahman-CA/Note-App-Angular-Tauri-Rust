@@ -53,6 +53,17 @@ export class AppComponent implements AfterViewChecked, OnInit {
   password = '';
   errorMessage = '';
 
+  availableFonts = [
+    { name: 'Montserrat', family: "'Montserrat', sans-serif" },
+    { name: 'Open Sans', family: "'Open Sans', sans-serif" },
+    { name: 'Cascadia Code', family: "'Cascadia Code', monospace" },
+    { name: 'Fira Code', family: "'Fira Code', monospace" },
+    { name: 'JetBrains Mono', family: "'JetBrains Mono', monospace" }
+  ];
+  selectedFont = 'Montserrat';
+  showFontSettings = false;
+  focusedFontIndex = 0;
+
   // Idle Detection
   private idleTimeout = 10 * 60 * 1000; // 10 minutes
   private lastActivity = Date.now();
@@ -99,6 +110,33 @@ export class AppComponent implements AfterViewChecked, OnInit {
     } catch (err) {
       console.error(err);
     }
+    this.loadFont();
+  }
+
+  toggleFontSettings() {
+    this.showFontSettings = !this.showFontSettings;
+    if (this.showFontSettings) {
+      this.focusedFontIndex = this.availableFonts.findIndex(f => f.name === this.selectedFont);
+      if (this.focusedFontIndex === -1) this.focusedFontIndex = 0;
+    }
+  }
+
+  loadFont() {
+    const saved = localStorage.getItem('selectedFont');
+    if (saved) {
+      this.setFont(saved);
+    } else {
+      this.setFont('Montserrat');
+    }
+  }
+
+  setFont(fontName: string) {
+    this.selectedFont = fontName;
+    localStorage.setItem('selectedFont', fontName);
+    const font = this.availableFonts.find(f => f.name === fontName);
+    if (font) {
+      document.documentElement.style.setProperty('--main-font', font.family);
+    }
   }
 
   ngAfterViewChecked() {
@@ -133,6 +171,24 @@ export class AppComponent implements AfterViewChecked, OnInit {
     this.resetIdleTimer(); // Merge activity reset
 
     if (this.authStatus !== 'Unlocked') return;
+
+    if (this.showFontSettings) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        this.focusedFontIndex = (this.focusedFontIndex + 1) % this.availableFonts.length;
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        this.focusedFontIndex = (this.focusedFontIndex - 1 + this.availableFonts.length) % this.availableFonts.length;
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        this.setFont(this.availableFonts[this.focusedFontIndex].name);
+        this.showFontSettings = false;
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        this.showFontSettings = false;
+      }
+      return;
+    }
 
     // Toggle Help (Ctrl + H)
     if (event.ctrlKey && event.key.toLowerCase() === 'h') {
