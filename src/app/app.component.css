@@ -482,6 +482,16 @@ button.primary:hover {
   position: relative;
   display: flex;
   flex-direction: column;
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE/Edge */
+}
+
+
+.help-content::-webkit-scrollbar {
+  display: none;
+  /* Chrome/Safari/Webkit */
 }
 
 .help-content h2 {
@@ -497,6 +507,11 @@ button.primary:hover {
   text-align: left;
   flex-grow: 1;
   overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.shortcut-list::-webkit-scrollbar {
+  display: none;
 }
 
 .shortcut-item {
@@ -539,12 +554,17 @@ button.primary:hover {
 }
 
 .search-results {
-  flex-grow: 1;
-  overflow-y: auto;
   margin-bottom: 20px;
   text-align: left;
   border: 1px solid var(--border-color);
   border-radius: 8px;
+  flex-grow: 1;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.search-results::-webkit-scrollbar {
+  display: none;
 }
 
 .search-result-item {
@@ -592,8 +612,7 @@ button.primary:hover {
 }
 
 .scrollable::-webkit-scrollbar {
-  display: block;
-  width: 4px;
+  display: none;
 }
 
 /* Bin / History Styles */
@@ -731,6 +750,11 @@ button.primary:hover {
   text-align: left;
   flex-grow: 1;
   overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.font-list::-webkit-scrollbar {
+  display: none;
 }
 
 .font-item {
