@@ -294,3 +294,86 @@ button.primary:hover {
   display: flex;
   gap: 12px;
 }
+
+/* Vault Styles */
+.vault-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: calc(100vh - 38px);
+  background: var(--bg-color);
+  overflow: hidden;
+}
+
+.vault-card {
+  width: 100%;
+  max-width: 320px;
+  padding: 40px 20px;
+  text-align: center;
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.vault-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 24px;
+  background: var(--hover-color);
+  border-radius: 50%;
+  padding: 16px;
+  color: var(--accent-color);
+}
+
+.vault-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.vault-subtitle {
+  font-size: 13px;
+  opacity: 0.6;
+  margin-bottom: 32px;
+}
+
+.vault-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.vault-input-group input {
+  text-align: center;
+  font-size: 16px;
+  letter-spacing: 2px;
+}
+
+.error-text {
+  color: var(--mac-close);
+  font-size: 12px;
+  margin-top: 16px;
+  font-weight: 500;
+}
+
+.vault-footer {
+  font-size: 11px;
+  opacity: 0.4;
+  margin-top: 32px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  opacity: 0.4;
+  font-size: 14px;
+}

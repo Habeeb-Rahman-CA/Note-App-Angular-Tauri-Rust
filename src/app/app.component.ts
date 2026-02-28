@@ -3,13 +3,15 @@ import { CommonModule } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import Database from '@tauri-apps/plugin-sql';
+import { invoke } from '@tauri-apps/api/core';
 import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 
 interface Note {
   id: number;
   content: string;
 }
+
+type AuthStatus = 'SetupRequired' | 'Locked' | 'Unlocked';
 
 @Component({
   selector: 'app-root',
@@ -19,12 +21,16 @@ interface Note {
   styleUrl: './app.component.css'
 })
 export class AppComponent {
-  db!: Database;
   notes: Note[] = [];
   newNote = '';
   editingNoteId: number | null = null;
   editContent = '';
   autoStartEnabled = false;
+
+  // Vault Status
+  authStatus: AuthStatus = 'Locked';
+  password = '';
+  errorMessage = '';
 
   async ngOnInit() {
     try {
@@ -32,15 +38,26 @@ export class AppComponent {
     } catch (err) {
       console.warn('Autostart plugin not available:', err);
     }
-    console.log('Loading database...');
+
+    // Check if we need to setup or unlock
+    this.authStatus = await invoke<AuthStatus>('check_auth_status');
+  }
+
+  async unlockVault() {
+    if (!this.password.trim()) return;
+
     try {
-      this.db = await Database.load('sqlite:notes.db');
-      console.log('Database loaded successfully');
+      this.errorMessage = '';
+      await invoke('unlock_db', { password: this.password });
+      this.authStatus = 'Unlocked';
+      this.password = '';
       await this.loadNotes();
-    } catch (err) {
-      console.error('Failed to load database:', err);
+    } catch (err: any) {
+      console.error('Failed to unlock vault:', err);
+      this.errorMessage = err.toString();
     }
   }
+
   async toggleAutoStart() {
     try {
       if (this.autoStartEnabled) {
@@ -53,27 +70,21 @@ export class AppComponent {
       console.error('Failed to toggle autostart:', err);
     }
   }
+
   async loadNotes() {
-    this.notes = await this.db.select<Note[]>(
-      'SELECT * FROM notes'
-    );
-    console.log(`Loaded ${this.notes.length} notes`);
+    try {
+      this.notes = await invoke<Note[]>('get_notes');
+      console.log(`Loaded ${this.notes.length} notes from encrypted DB`);
+    } catch (err) {
+      console.error('Failed to load notes:', err);
+    }
   }
 
   async addNote() {
-    console.log('Adding note...', this.newNote);
-    if (!this.db) {
-      console.warn('Database not initialized');
-      return;
-    }
     if (!this.newNote.trim()) return;
 
     try {
-      await this.db.execute(
-        'INSERT INTO notes (content) VALUES (?1)',
-        [this.newNote]
-      );
-      console.log('Note added to DB');
+      await invoke('add_note', { content: this.newNote });
       this.newNote = '';
       await this.loadNotes();
     } catch (err) {
@@ -92,13 +103,10 @@ export class AppComponent {
   }
 
   async updateNote() {
-    if (!this.db || !this.editContent.trim() || this.editingNoteId === null) return;
+    if (!this.editContent.trim() || this.editingNoteId === null) return;
 
     try {
-      await this.db.execute(
-        'UPDATE notes SET content = ?1 WHERE id = ?2',
-        [this.editContent, this.editingNoteId]
-      );
+      await invoke('update_note', { id: this.editingNoteId, content: this.editContent });
       this.editingNoteId = null;
       this.editContent = '';
       await this.loadNotes();
@@ -108,13 +116,12 @@ export class AppComponent {
   }
 
   async deleteNote(id: number) {
-    if (!this.db) return;
-    await this.db.execute(
-      'DELETE FROM notes WHERE id = ?1',
-      [id]
-    );
-
-    await this.loadNotes();
+    try {
+      await invoke('delete_note', { id });
+      await this.loadNotes();
+    } catch (err) {
+      console.error('Failed to delete note:', err);
+    }
   }
 
   async minimize() {

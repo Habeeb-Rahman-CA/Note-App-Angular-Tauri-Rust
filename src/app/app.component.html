@@ -14,11 +14,43 @@
         <path d="M9 12H4s.55-3.03 2-5c1.62-2.2 5-3 5-3" />
         <path d="M12 15v5s3.03-.55 5-2c2.2-1.62 3-5 3-5" />
       </svg>
+      <span class="tooltip">{{ autoStartEnabled ? 'Startup: Enabled' : 'Startup: Disabled' }}</span>
     </button>
   </div>
 </div>
 
-<main class="container">
+<!-- Vault Locked/Setup View -->
+<div class="vault-container" *ngIf="authStatus !== 'Unlocked'">
+  <div class="vault-card">
+    <div class="vault-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </svg>
+    </div>
+
+    <h2 *ngIf="authStatus === 'SetupRequired'">Security Setup</h2>
+    <h2 *ngIf="authStatus === 'Locked'">Vault Locked</h2>
+
+    <p class="vault-subtitle" *ngIf="authStatus === 'SetupRequired'">Set a master password to encrypt your notes.</p>
+    <p class="vault-subtitle" *ngIf="authStatus === 'Locked'">Enter your password to decrypt your notes.</p>
+
+    <div class="vault-input-group">
+      <input type="password" [(ngModel)]="password" placeholder="Master Password" (keyup.enter)="unlockVault()"
+        autofocus />
+      <button class="primary" (click)="unlockVault()">
+        {{ authStatus === 'SetupRequired' ? 'Create Vault' : 'Unlock' }}
+      </button>
+    </div>
+
+    <p class="error-text" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+    <p class="vault-footer" *ngIf="authStatus === 'SetupRequired'">Don't forget this password! We cannot recover it.</p>
+  </div>
+</div>
+
+<!-- Main App Content (Unlocked) -->
+<main class="container" *ngIf="authStatus === 'Unlocked'">
   <h2>My Notes</h2>
 
   <div class="input-group">
@@ -34,7 +66,7 @@
         <p class="note-content">{{ note.content }}</p>
         <div class="card-actions">
           <button class="btn-link" (click)="startEdit(note)">Edit</button>
-          <button class="btn-link" (click)="deleteNote(note.id)">Delete</button>
+          <button class="btn-link" (click)="$event.stopPropagation(); deleteNote(note.id)">Delete</button>
         </div>
       </div>
 
@@ -49,6 +81,10 @@
         </div>
       </ng-template>
 
+    </div>
+
+    <div class="empty-state" *ngIf="notes.length === 0">
+      <p>No notes found. Start by adding one above!</p>
     </div>
   </div>
 </main>
