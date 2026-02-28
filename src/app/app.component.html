@@ -78,6 +78,7 @@
       <!-- Normal View -->
       <div *ngIf="editingNoteId !== note.id; else editView" class="note-wrapper">
         <p class="note-content">{{ note.content }}</p>
+        <span class="note-date">{{ formatDate(note.timestamp) }}</span>
 
         <!-- Small Confirmation Overlay -->
         <div class="delete-overlay" *ngIf="isConfirmingDeleteId === note.id">

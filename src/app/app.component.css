@@ -294,10 +294,23 @@ button.primary:hover {
   border: 1px dashed #e0e0e0;
 }
 
+.note-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
 .note-content {
-  margin: 0;
   font-size: 14px;
   white-space: pre-wrap;
+  margin-bottom: 8px;
+}
+
+.note-date {
+  align-self: flex-end;
+  font-size: 10px;
+  opacity: 0.4;
+  letter-spacing: 0.3px;
+  font-weight: 500;
 }
 
 .delete-overlay {

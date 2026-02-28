@@ -9,6 +9,7 @@ import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 interface Note {
   id: number;
   content: string;
+  timestamp: string;
 }
 
 type AuthStatus = 'SetupRequired' | 'Locked' | 'Unlocked';
@@ -120,6 +121,12 @@ export class AppComponent implements AfterViewChecked {
       this.editingNoteId = null;
       this.isConfirmingDeleteId = null;
       this.triggerFocus();
+
+      // Scroll container to top
+      const container = document.querySelector('.container');
+      if (container) {
+        container.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     }
 
     // Escape Handler (Global Close)
@@ -258,6 +265,24 @@ export class AppComponent implements AfterViewChecked {
     }
   }
 
+  formatDate(dateStr: string): string {
+    if (!dateStr) return '';
+    try {
+      // SQLite format is usually YYYY-MM-DD HH:MM:SS (UTC)
+      // Append 'Z' to treat as UTC then convert to local
+      const date = new Date(dateStr.replace(' ', 'T') + 'Z');
+      return date.toLocaleString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    } catch {
+      return dateStr;
+    }
+  }
+
   async addNote() {
     if (!this.newNote.trim()) return;
     try {
@@ -368,12 +393,22 @@ export class AppComponent implements AfterViewChecked {
   }
 
   async deleteNote(id: number) {
+    // Find index before deleting
+    const index = this.notes.findIndex(n => n.id === id);
+
     try {
       await invoke('delete_note', { id });
       this.isConfirmingDeleteId = null;
-      this.selectedNoteId = null;
       await this.loadNotes();
-      this.triggerFocus();
+
+      if (this.notes.length > 0) {
+        // Select next available note at same index, or the last one if we deleted the end item
+        const nextIndex = Math.min(index, this.notes.length - 1);
+        this.selectedNoteId = this.notes[nextIndex].id;
+      } else {
+        this.selectedNoteId = null;
+        this.triggerFocus();
+      }
     } catch (err) {
       console.error(err);
     }

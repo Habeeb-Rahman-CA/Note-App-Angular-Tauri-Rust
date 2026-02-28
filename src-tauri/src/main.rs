@@ -19,12 +19,12 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{Manager, State};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
-use zeroize::Zeroize;
 
 #[derive(Serialize, Deserialize)]
 struct Note {
     id: i64,
     content: String,
+    timestamp: String,
 }
 
 // Internal structure to handle DB + Key
@@ -97,11 +97,42 @@ async fn unlock_db(
         "CREATE TABLE IF NOT EXISTS secure_notes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nonce BLOB NOT NULL,
-            ciphertext BLOB NOT NULL
+            ciphertext BLOB NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )",
         [],
     )
     .map_err(|e| e.to_string())?;
+
+    // Migration: Add created_at if it doesn't exist
+    let mut has_created_at = false;
+    {
+        let mut stmt = conn
+            .prepare("PRAGMA table_info(secure_notes)")
+            .map_err(|e| e.to_string())?;
+        let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            let name: String = row.get(1).map_err(|e| e.to_string())?;
+            if name == "created_at" {
+                has_created_at = true;
+                break;
+            }
+        }
+    }
+
+    if !has_created_at {
+        conn.execute(
+            "ALTER TABLE secure_notes ADD COLUMN created_at DATETIME",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+
+        // Set a timestamp for existing rows that didn't have one
+        let _ = conn.execute(
+            "UPDATE secure_notes SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL",
+            [],
+        );
+    }
 
     let mut db_lock = state.0.lock().unwrap();
     *db_lock = Some((conn, key));
@@ -117,7 +148,9 @@ fn get_notes(state: State<'_, DbState>) -> Result<Vec<Note>, String> {
     let cipher = Aes256Gcm::new(key.into());
 
     let mut stmt = conn
-        .prepare("SELECT id, nonce, ciphertext FROM secure_notes")
+        .prepare(
+            "SELECT id, nonce, ciphertext, created_at FROM secure_notes ORDER BY created_at DESC",
+        )
         .map_err(|e| e.to_string())?;
 
     let note_iter = stmt
@@ -125,6 +158,7 @@ fn get_notes(state: State<'_, DbState>) -> Result<Vec<Note>, String> {
             let id: i64 = row.get(0)?;
             let nonce_bytes: Vec<u8> = row.get(1)?;
             let ciphertext: Vec<u8> = row.get(2)?;
+            let timestamp: String = row.get(3).unwrap_or_default();
 
             let nonce = Nonce::from_slice(&nonce_bytes);
             let decrypted = cipher
@@ -134,7 +168,11 @@ fn get_notes(state: State<'_, DbState>) -> Result<Vec<Note>, String> {
             let content =
                 String::from_utf8(decrypted).map_err(|_| rusqlite::Error::InvalidQuery)?;
 
-            Ok(Note { id, content })
+            Ok(Note {
+                id,
+                content,
+                timestamp,
+            })
         })
         .map_err(|e| e.to_string())?;
 
@@ -160,7 +198,7 @@ fn add_note(content: String, state: State<'_, DbState>) -> Result<String, String
         .map_err(|e| format!("Encryption failed: {}", e))?;
 
     conn.execute(
-        "INSERT INTO secure_notes (nonce, ciphertext) VALUES (?1, ?2)",
+        "INSERT INTO secure_notes (nonce, ciphertext, created_at) VALUES (?1, ?2, CURRENT_TIMESTAMP)",
         params![nonce_bytes.to_vec(), ciphertext],
     )
     .map_err(|e| e.to_string())?;
