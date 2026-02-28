@@ -11,6 +11,7 @@ interface Note {
   content: string;
   timestamp: string;
   is_pinned: boolean;
+  is_deleted: boolean;
 }
 
 type AuthStatus = 'SetupRequired' | 'Locked' | 'Unlocked';
@@ -37,7 +38,10 @@ export class AppComponent implements AfterViewChecked {
   autoStartEnabled = false;
   showHelp = false;
   showSearch = false;
+  showBin = false;
   searchQuery = '';
+  binNotes: Note[] = [];
+  selectedBinNoteId: number | null = null;
   @ViewChild('searchInput') searchInput?: ElementRef;
   private searchNeedsFocus = false;
 
@@ -111,6 +115,17 @@ export class AppComponent implements AfterViewChecked {
       this.showHelp = !this.showHelp;
     }
 
+    // Toggle Bin (Ctrl + B)
+    if (event.ctrlKey && event.key.toLowerCase() === 'b') {
+      event.preventDefault();
+      this.showBin = !this.showBin;
+      if (this.showBin) {
+        this.showHelp = false;
+        this.showSearch = false;
+        this.loadBinNotes();
+      }
+    }
+
     // Toggle Search (Ctrl + F)
     if (event.ctrlKey && event.key.toLowerCase() === 'f') {
       event.preventDefault();
@@ -154,15 +169,33 @@ export class AppComponent implements AfterViewChecked {
 
     // Escape Handler
     if (event.key === 'Escape') {
-      if (this.showHelp || this.showSearch) {
+      if (this.showHelp || this.showSearch || this.showBin) {
         this.showHelp = false;
         this.showSearch = false;
+        this.showBin = false;
         event.preventDefault();
         return;
       }
     }
 
     // Arrow keys for navigation
+    if (this.showBin) {
+      if (this.binNotes.length > 0) {
+        let currentIndex = this.binNotes.findIndex(n => n.id === this.selectedBinNoteId);
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          const nextIndex = (currentIndex + 1) % this.binNotes.length;
+          this.selectedBinNoteId = this.binNotes[nextIndex].id;
+        }
+        if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          const prevIndex = (currentIndex - 1 + this.binNotes.length) % this.binNotes.length;
+          this.selectedBinNoteId = this.binNotes[prevIndex].id;
+        }
+      }
+      return;
+    }
+
     if (this.selectedNoteId !== null && this.editingNoteId === null && this.isConfirmingDeleteId === null) {
       const list = this.showSearch ? this.getFilteredNotes() : this.notes;
       const currentIndex = list.findIndex(n => n.id === this.selectedNoteId);
@@ -476,6 +509,45 @@ export class AppComponent implements AfterViewChecked {
     try {
       await invoke('toggle_pin', { id });
       await this.loadNotes();
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async loadBinNotes() {
+    try {
+      this.binNotes = await invoke<Note[]>('get_bin_notes');
+      if (this.binNotes.length > 0 && this.selectedBinNoteId === null) {
+        this.selectedBinNoteId = this.binNotes[0].id;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async restoreNote(id: number) {
+    try {
+      await invoke('restore_note', { id });
+      await this.loadBinNotes();
+      await this.loadNotes();
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async permanentDeleteNote(id: number) {
+    try {
+      await invoke('permanent_delete_note', { id });
+      await this.loadBinNotes();
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async clearBin() {
+    try {
+      await invoke('clear_bin');
+      await this.loadBinNotes();
     } catch (err) {
       console.error(err);
     }

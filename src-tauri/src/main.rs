@@ -26,6 +26,7 @@ struct Note {
     content: String,
     timestamp: String,
     is_pinned: bool,
+    is_deleted: bool,
 }
 
 // Internal structure to handle DB + Key
@@ -100,15 +101,17 @@ async fn unlock_db(
             nonce BLOB NOT NULL,
             ciphertext BLOB NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            is_pinned BOOLEAN DEFAULT 0
+            is_pinned BOOLEAN DEFAULT 0,
+            is_deleted BOOLEAN DEFAULT 0
         )",
         [],
     )
     .map_err(|e| e.to_string())?;
 
-    // Migration: Add is_pinned if it doesn't exist
+    // Migration: Add columns if they don't exist
     let mut has_is_pinned = false;
     let mut has_created_at = false;
+    let mut has_is_deleted = false;
     {
         let mut stmt = conn
             .prepare("PRAGMA table_info(secure_notes)")
@@ -121,6 +124,9 @@ async fn unlock_db(
             }
             if name == "created_at" {
                 has_created_at = true;
+            }
+            if name == "is_deleted" {
+                has_is_deleted = true;
             }
         }
     }
@@ -135,10 +141,15 @@ async fn unlock_db(
             [],
         );
     }
-
     if !has_is_pinned {
         let _ = conn.execute(
             "ALTER TABLE secure_notes ADD COLUMN is_pinned BOOLEAN DEFAULT 0",
+            [],
+        );
+    }
+    if !has_is_deleted {
+        let _ = conn.execute(
+            "ALTER TABLE secure_notes ADD COLUMN is_deleted BOOLEAN DEFAULT 0",
             [],
         );
     }
@@ -158,7 +169,7 @@ fn get_notes(state: State<'_, DbState>) -> Result<Vec<Note>, String> {
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, nonce, ciphertext, created_at, is_pinned FROM secure_notes ORDER BY is_pinned DESC, created_at DESC",
+            "SELECT id, nonce, ciphertext, created_at, is_pinned, is_deleted FROM secure_notes WHERE is_deleted = 0 ORDER BY is_pinned DESC, created_at DESC",
         )
         .map_err(|e| e.to_string())?;
 
@@ -169,6 +180,7 @@ fn get_notes(state: State<'_, DbState>) -> Result<Vec<Note>, String> {
             let ciphertext: Vec<u8> = row.get(2)?;
             let timestamp: String = row.get(3).unwrap_or_default();
             let is_pinned: bool = row.get(4).unwrap_or(false);
+            let is_deleted: bool = row.get(5).unwrap_or(false);
 
             let nonce = Nonce::from_slice(&nonce_bytes);
             let decrypted = cipher
@@ -183,6 +195,7 @@ fn get_notes(state: State<'_, DbState>) -> Result<Vec<Note>, String> {
                 content,
                 timestamp,
                 is_pinned,
+                is_deleted,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -190,6 +203,50 @@ fn get_notes(state: State<'_, DbState>) -> Result<Vec<Note>, String> {
     let mut notes = Vec::new();
     for note in note_iter {
         notes.push(note.map_err(|e| format!("Decryption error: {}", e))?);
+    }
+    Ok(notes)
+}
+
+#[tauri::command]
+fn get_bin_notes(state: State<'_, DbState>) -> Result<Vec<Note>, String> {
+    let db_lock = state.0.lock().unwrap();
+    let (conn, key) = db_lock.as_ref().ok_or("Vault is locked")?;
+
+    let cipher = Aes256Gcm::new(key.into());
+
+    let mut stmt = conn
+        .prepare("SELECT id, nonce, ciphertext, created_at, is_pinned, is_deleted FROM secure_notes WHERE is_deleted = 1 ORDER BY created_at DESC")
+        .map_err(|e| e.to_string())?;
+
+    let note_iter = stmt
+        .query_map(params![], |row| {
+            let id: i64 = row.get(0)?;
+            let nonce_bytes: Vec<u8> = row.get(1)?;
+            let ciphertext: Vec<u8> = row.get(2)?;
+            let timestamp: String = row.get(3).unwrap_or_default();
+            let is_pinned: bool = row.get(4).unwrap_or(false);
+            let is_deleted: bool = row.get(5).unwrap_or(false);
+
+            let nonce = Nonce::from_slice(&nonce_bytes);
+            let decrypted = cipher
+                .decrypt(nonce, ciphertext.as_ref())
+                .map_err(|_| rusqlite::Error::InvalidQuery)?;
+            let content =
+                String::from_utf8(decrypted).map_err(|_| rusqlite::Error::InvalidQuery)?;
+
+            Ok(Note {
+                id,
+                content,
+                timestamp,
+                is_pinned,
+                is_deleted,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut notes = Vec::new();
+    for note in note_iter {
+        notes.push(note.map_err(|e| e.to_string())?);
     }
     Ok(notes)
 }
@@ -245,10 +302,45 @@ fn delete_note(id: i64, state: State<'_, DbState>) -> Result<String, String> {
     let db_lock = state.0.lock().unwrap();
     let (conn, _) = db_lock.as_ref().ok_or("Vault is locked")?;
 
+    conn.execute(
+        "UPDATE secure_notes SET is_deleted = 1 WHERE id = ?1",
+        params![id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok("Deleted to Bin".to_string())
+}
+
+#[tauri::command]
+fn restore_note(id: i64, state: State<'_, DbState>) -> Result<String, String> {
+    let db_lock = state.0.lock().unwrap();
+    let (conn, _) = db_lock.as_ref().ok_or("Vault is locked")?;
+
+    conn.execute(
+        "UPDATE secure_notes SET is_deleted = 0 WHERE id = ?1",
+        params![id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok("Restored".to_string())
+}
+
+#[tauri::command]
+fn permanent_delete_note(id: i64, state: State<'_, DbState>) -> Result<String, String> {
+    let db_lock = state.0.lock().unwrap();
+    let (conn, _) = db_lock.as_ref().ok_or("Vault is locked")?;
+
     conn.execute("DELETE FROM secure_notes WHERE id = ?1", params![id])
         .map_err(|e| e.to_string())?;
+    Ok("Permanently Deleted".to_string())
+}
 
-    Ok("Deleted".to_string())
+#[tauri::command]
+fn clear_bin(state: State<'_, DbState>) -> Result<String, String> {
+    let db_lock = state.0.lock().unwrap();
+    let (conn, _) = db_lock.as_ref().ok_or("Vault is locked")?;
+
+    conn.execute("DELETE FROM secure_notes WHERE is_deleted = 1", [])
+        .map_err(|e| e.to_string())?;
+    Ok("Bin Cleared".to_string())
 }
 
 #[tauri::command]
@@ -285,10 +377,14 @@ fn main() {
             unlock_db,
             lock_vault,
             get_notes,
+            get_bin_notes,
             add_note,
             update_note,
             delete_note,
-            toggle_pin
+            toggle_pin,
+            restore_note,
+            permanent_delete_note,
+            clear_bin
         ])
         .setup(|app| {
             let ctrl_shift_n =

@@ -579,3 +579,106 @@ button.primary:hover {
   display: block;
   width: 4px;
 }
+
+/* Bin / History Styles */
+.bin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.bin-header h2 {
+  margin: 0;
+}
+
+.text-btn {
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.text-btn.danger {
+  color: #e74c3c;
+}
+
+.text-btn.danger:hover {
+  background: rgba(231, 76, 60, 0.1);
+}
+
+.bin-item {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.bin-item:last-child {
+  border-bottom: none;
+}
+
+.bin-item.selected {
+  background: var(--hover-color);
+  box-shadow: inset 4px 0 0 0 var(--text-color);
+}
+
+.bin-item-content {
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+.bin-text {
+  margin: 0 0 6px 0;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bin-date {
+  font-size: 10px;
+  opacity: 0.4;
+}
+
+.bin-actions {
+  display: flex;
+  gap: 8px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.icon-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.icon-btn.success:hover {
+  background: rgba(46, 204, 113, 0.1);
+  color: #2ecc71;
+  border-color: #2ecc71;
+}
+
+.icon-btn.danger:hover {
+  background: rgba(231, 76, 60, 0.1);
+  color: #e74c3c;
+  border-color: #e74c3c;
+}
