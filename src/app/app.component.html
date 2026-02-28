@@ -20,7 +20,6 @@
         <path d="M9 12H4s.55-3.03 2-5c1.62-2.2 5-3 5-3" />
         <path d="M12 15v5s3.03-.55 5-2c2.2-1.62 3-5 3-5" />
       </svg>
-      <span class="tooltip">{{ autoStartEnabled ? 'Startup: Enabled' : 'Startup: Disabled' }}</span>
     </button>
   </div>
 </div>
@@ -38,8 +37,9 @@
     <h2 *ngIf="authStatus === 'SetupRequired'">Security Setup</h2>
     <h2 *ngIf="authStatus === 'Locked'">Vault Locked</h2>
 
-    <p class="vault-subtitle" *ngIf="authStatus === 'SetupRequired'">Set a master password to encrypt your notes.</p>
-    <p class="vault-subtitle" *ngIf="authStatus === 'Locked'">Enter your password to decrypt your notes.</p>
+    <p class="vault-subtitle" *ngIf="authStatus === 'SetupRequired'">Set a master password to encrypt your <b>bilet</b>.
+    </p>
+    <p class="vault-subtitle" *ngIf="authStatus === 'Locked'">Enter your password to decrypt your <b>bilet</b>.</p>
 
     <div class="vault-input-group">
       <input type="password" [(ngModel)]="password" placeholder="Master Password" (keyup.enter)="unlockVault()"
@@ -57,7 +57,6 @@
 
 <!-- Main App Content (Unlocked) -->
 <main class="container" *ngIf="authStatus === 'Unlocked'">
-  <h2>My Notes</h2>
 
   <div class="input-group">
     <input [(ngModel)]="newNote" placeholder="Write a new note..." (keyup.enter)="addNote()" />

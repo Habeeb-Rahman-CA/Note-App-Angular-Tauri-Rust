@@ -33,7 +33,7 @@ export class AppComponent {
   errorMessage = '';
 
   // Idle Detection
-  private idleTimeout = 1 * 60 * 1000; // 5 minutes
+  private idleTimeout = 10 * 60 * 1000; // 10 minutes
   private lastActivity = Date.now();
   private idleCheckInterval: any;
 
