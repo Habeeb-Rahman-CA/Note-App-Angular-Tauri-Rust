@@ -144,7 +144,10 @@
   <!-- Editor with Line Numbers -->
   <div class="editor-area" *ngIf="activePad">
     <div class="line-gutter">
-      <span *ngFor="let num of lineNumbers">{{ num }}</span>
+      <span *ngFor="let num of lineNumbers" class="gutter-line" [class.marked]="isLineMarked(num)"
+        (click)="toggleLineMark(num)">
+        {{ num }}
+      </span>
     </div>
     <textarea #padEditor class="pad-content-editor" [(ngModel)]="padContent" (ngModelChange)="onPadContentChange()"
       (scroll)="onEditorScroll($event)" placeholder="Start writing..." spellcheck="false"></textarea>

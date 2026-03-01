@@ -965,6 +965,26 @@ button.primary:hover {
   color: var(--text-color);
   opacity: 0.15;
   font-family: inherit;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.line-gutter span:hover {
+  opacity: 0.5;
+}
+
+.line-gutter span.marked {
+  opacity: 1;
+  color: #000000;
+  font-weight: 600;
+}
+
+.line-gutter span.marked::before {
+  content: '•';
+  position: absolute;
+  left: -4px;
+  font-size: 14px;
 }
 
 .pad-content-editor {

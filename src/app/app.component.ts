@@ -75,6 +75,28 @@ export class AppComponent implements AfterViewChecked, OnInit, OnDestroy {
   lineNumbers: number[] = [1];
   private autoSaveTimer: any = null;
 
+  // Bookmarking/Marking lines
+  padLineMarks: { [padId: number]: Set<number> } = {};
+
+  isLineMarked(num: number): boolean {
+    if (!this.activeTabId) return false;
+    const marks = this.padLineMarks[this.activeTabId];
+    return marks ? marks.has(num) : false;
+  }
+
+  toggleLineMark(num: number) {
+    if (!this.activeTabId) return;
+    if (!this.padLineMarks[this.activeTabId]) {
+      this.padLineMarks[this.activeTabId] = new Set<number>();
+    }
+    const marks = this.padLineMarks[this.activeTabId];
+    if (marks.has(num)) {
+      marks.delete(num);
+    } else {
+      marks.add(num);
+    }
+  }
+
   // Vault Status
   authStatus: AuthStatus = 'Locked';
   password = '';
