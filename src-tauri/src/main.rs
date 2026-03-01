@@ -29,6 +29,15 @@ struct Note {
     is_deleted: bool,
 }
 
+#[derive(Serialize, Deserialize)]
+struct Pad {
+    id: i64,
+    title: String,
+    content: String,
+    created_at: String,
+    updated_at: String,
+}
+
 // Internal structure to handle DB + Key
 struct DbState(Mutex<Option<(Connection, [u8; 32])>>);
 
@@ -103,6 +112,21 @@ async fn unlock_db(
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             is_pinned BOOLEAN DEFAULT 0,
             is_deleted BOOLEAN DEFAULT 0
+        )",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // Create secure_pads table for notepad feature
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS secure_pads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title_nonce BLOB NOT NULL,
+            title_ciphertext BLOB NOT NULL,
+            content_nonce BLOB NOT NULL,
+            content_ciphertext BLOB NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )",
         [],
     )
@@ -357,6 +381,126 @@ fn toggle_pin(id: i64, state: State<'_, DbState>) -> Result<String, String> {
     Ok("Toggled".to_string())
 }
 
+// ===== Notepad Commands =====
+
+#[tauri::command]
+fn get_pads(state: State<'_, DbState>) -> Result<Vec<Pad>, String> {
+    let db_lock = state.0.lock().unwrap();
+    let (conn, key) = db_lock.as_ref().ok_or("Vault is locked")?;
+    let cipher = Aes256Gcm::new(key.into());
+
+    let mut stmt = conn
+        .prepare("SELECT id, title_nonce, title_ciphertext, content_nonce, content_ciphertext, created_at, updated_at FROM secure_pads ORDER BY updated_at DESC")
+        .map_err(|e| e.to_string())?;
+
+    let pad_iter = stmt
+        .query_map(params![], |row| {
+            let id: i64 = row.get(0)?;
+            let title_nonce_bytes: Vec<u8> = row.get(1)?;
+            let title_ciphertext: Vec<u8> = row.get(2)?;
+            let content_nonce_bytes: Vec<u8> = row.get(3)?;
+            let content_ciphertext: Vec<u8> = row.get(4)?;
+            let created_at: String = row.get(5).unwrap_or_default();
+            let updated_at: String = row.get(6).unwrap_or_default();
+
+            let title_nonce = Nonce::from_slice(&title_nonce_bytes);
+            let title_dec = cipher
+                .decrypt(title_nonce, title_ciphertext.as_ref())
+                .map_err(|_| rusqlite::Error::InvalidQuery)?;
+            let title = String::from_utf8(title_dec).map_err(|_| rusqlite::Error::InvalidQuery)?;
+
+            let content_nonce = Nonce::from_slice(&content_nonce_bytes);
+            let content_dec = cipher
+                .decrypt(content_nonce, content_ciphertext.as_ref())
+                .map_err(|_| rusqlite::Error::InvalidQuery)?;
+            let content =
+                String::from_utf8(content_dec).map_err(|_| rusqlite::Error::InvalidQuery)?;
+
+            Ok(Pad {
+                id,
+                title,
+                content,
+                created_at,
+                updated_at,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut pads = Vec::new();
+    for pad in pad_iter {
+        pads.push(pad.map_err(|e| format!("Decryption error: {}", e))?);
+    }
+    Ok(pads)
+}
+
+#[tauri::command]
+fn add_pad(title: String, content: String, state: State<'_, DbState>) -> Result<i64, String> {
+    let db_lock = state.0.lock().unwrap();
+    let (conn, key) = db_lock.as_ref().ok_or("Vault is locked")?;
+    let cipher = Aes256Gcm::new(key.into());
+
+    let mut tn = [0u8; 12];
+    OsRng.fill_bytes(&mut tn);
+    let title_ct = cipher
+        .encrypt(Nonce::from_slice(&tn), title.as_bytes())
+        .map_err(|e| format!("Encryption failed: {}", e))?;
+
+    let mut cn = [0u8; 12];
+    OsRng.fill_bytes(&mut cn);
+    let content_ct = cipher
+        .encrypt(Nonce::from_slice(&cn), content.as_bytes())
+        .map_err(|e| format!("Encryption failed: {}", e))?;
+
+    conn.execute(
+        "INSERT INTO secure_pads (title_nonce, title_ciphertext, content_nonce, content_ciphertext, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        params![tn.to_vec(), title_ct, cn.to_vec(), content_ct],
+    ).map_err(|e| e.to_string())?;
+
+    let id = conn.last_insert_rowid();
+    Ok(id)
+}
+
+#[tauri::command]
+fn update_pad(
+    id: i64,
+    title: String,
+    content: String,
+    state: State<'_, DbState>,
+) -> Result<String, String> {
+    let db_lock = state.0.lock().unwrap();
+    let (conn, key) = db_lock.as_ref().ok_or("Vault is locked")?;
+    let cipher = Aes256Gcm::new(key.into());
+
+    let mut tn = [0u8; 12];
+    OsRng.fill_bytes(&mut tn);
+    let title_ct = cipher
+        .encrypt(Nonce::from_slice(&tn), title.as_bytes())
+        .map_err(|e| format!("Encryption failed: {}", e))?;
+
+    let mut cn = [0u8; 12];
+    OsRng.fill_bytes(&mut cn);
+    let content_ct = cipher
+        .encrypt(Nonce::from_slice(&cn), content.as_bytes())
+        .map_err(|e| format!("Encryption failed: {}", e))?;
+
+    conn.execute(
+        "UPDATE secure_pads SET title_nonce = ?1, title_ciphertext = ?2, content_nonce = ?3, content_ciphertext = ?4, updated_at = CURRENT_TIMESTAMP WHERE id = ?5",
+        params![tn.to_vec(), title_ct, cn.to_vec(), content_ct, id],
+    ).map_err(|e| e.to_string())?;
+
+    Ok("Updated".to_string())
+}
+
+#[tauri::command]
+fn delete_pad(id: i64, state: State<'_, DbState>) -> Result<String, String> {
+    let db_lock = state.0.lock().unwrap();
+    let (conn, _) = db_lock.as_ref().ok_or("Vault is locked")?;
+
+    conn.execute("DELETE FROM secure_pads WHERE id = ?1", params![id])
+        .map_err(|e| e.to_string())?;
+    Ok("Deleted".to_string())
+}
+
 #[tauri::command]
 fn toggle_maximize(window: tauri::Window) -> Result<(), String> {
     if window.is_maximized().unwrap_or(false) {
@@ -395,7 +539,11 @@ fn main() {
             restore_note,
             permanent_delete_note,
             clear_bin,
-            toggle_maximize
+            toggle_maximize,
+            get_pads,
+            add_pad,
+            update_pad,
+            delete_pad
         ])
         .setup(|app| {
             let ctrl_shift_n =

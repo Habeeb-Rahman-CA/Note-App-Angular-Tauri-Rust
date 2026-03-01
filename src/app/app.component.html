@@ -77,8 +77,8 @@
   </div>
 </div>
 
-<!-- Main App Content (Unlocked) -->
-<main class="container" *ngIf="authStatus === 'Unlocked'">
+<!-- ========== TASKS SECTION ========== -->
+<main class="container" *ngIf="authStatus === 'Unlocked' && activeSection === 'tasks'">
 
   <div class="input-group">
     <textarea #noteInput [(ngModel)]="newNote" placeholder="Write a new task..."
@@ -123,11 +123,47 @@
   </div>
 </main>
 
+<!-- ========== NOTEPAD SECTION ========== -->
+<div class="notepad-container" *ngIf="authStatus === 'Unlocked' && activeSection === 'notepad'">
+
+  <!-- Tab Bar -->
+  <div class="tab-bar">
+    <div class="tab" *ngFor="let tab of openTabs" (click)="switchTab(tab.padId)"
+      [class.active]="activeTabId === tab.padId">
+      <span class="tab-title">{{ tab.title || 'Untitled' }}</span>
+      <button class="tab-close" (click)="closeTab(tab.padId, $event)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </div>
+    <button class="tab-add" (click)="createPad()" title="New tab">+</button>
+  </div>
+
+  <!-- Editor with Line Numbers -->
+  <div class="editor-area" *ngIf="activePad">
+    <div class="line-gutter">
+      <span *ngFor="let num of lineNumbers">{{ num }}</span>
+    </div>
+    <textarea #padEditor class="pad-content-editor" [(ngModel)]="padContent" (ngModelChange)="onPadContentChange()"
+      (scroll)="onEditorScroll($event)" placeholder="Start writing..." spellcheck="false"></textarea>
+  </div>
+
+  <!-- Empty state -->
+  <div class="editor-empty" *ngIf="!activePad">
+    <p>Press + to create a new note</p>
+  </div>
+</div>
+
 <!-- Help Modal -->
 <div class="help-overlay" *ngIf="showHelp" (click)="showHelp = false">
   <div class="help-content" (click)="$event.stopPropagation()">
     <h2>Keyboard Shortcuts</h2>
     <div class="shortcut-list">
+      <div class="shortcut-item"><span>Ctrl + Shift + N</span> Open Bilet</div>
+      <div class="shortcut-item"><span>Ctrl + Shift + Space</span> Switch Section</div>
+      <div class="shortcut-item"><span>Ctrl + N</span> New Tab</div>
       <div class="shortcut-item"><span>Ctrl + A</span> Focus Input</div>
       <div class="shortcut-item"><span>Ctrl + L</span> Focus List</div>
       <div class="shortcut-item"><span>Ctrl + F</span> Open Search</div>

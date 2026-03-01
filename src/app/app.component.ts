@@ -1,4 +1,4 @@
-import { Component, HostListener, ViewChild, ElementRef, AfterViewChecked, OnInit } from '@angular/core';
+import { Component, HostListener, ViewChild, ElementRef, AfterViewChecked, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -14,6 +14,19 @@ interface Note {
   is_deleted: boolean;
 }
 
+interface Pad {
+  id: number;
+  title: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface OpenTab {
+  padId: number;
+  title: string;
+}
+
 type AuthStatus = 'SetupRequired' | 'Locked' | 'Unlocked';
 
 @Component({
@@ -23,7 +36,7 @@ type AuthStatus = 'SetupRequired' | 'Locked' | 'Unlocked';
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
-export class AppComponent implements AfterViewChecked, OnInit {
+export class AppComponent implements AfterViewChecked, OnInit, OnDestroy {
   @ViewChild('noteInput') noteInput!: ElementRef;
   @ViewChild('editInput') editInput?: ElementRef;
   private needsFocus = false;
@@ -46,7 +59,21 @@ export class AppComponent implements AfterViewChecked, OnInit {
   isConfirmingRestoreId: number | null = null;
   isConfirmingClearAll = false;
   @ViewChild('searchInput') searchInput?: ElementRef;
+  @ViewChild('padEditor') padEditor?: ElementRef;
   private searchNeedsFocus = false;
+  private padEditorNeedsFocus = false;
+
+  // Section switching
+  activeSection: 'tasks' | 'notepad' = 'notepad';
+
+  // Notepad state
+  pads: Pad[] = [];
+  openTabs: OpenTab[] = [];
+  activeTabId: number | null = null;
+  activePad: Pad | null = null;
+  padContent = '';
+  lineNumbers: number[] = [1];
+  private autoSaveTimer: any = null;
 
   // Vault Status
   authStatus: AuthStatus = 'Locked';
@@ -81,18 +108,17 @@ export class AppComponent implements AfterViewChecked, OnInit {
 
       if (this.authStatus === 'Unlocked') {
         await this.loadNotes();
+        await this.loadPads();
         this.triggerFocus();
       }
 
-      this.startIdleDetection(); // Renamed to startIdleCheck in the instruction, but keeping original for now.
+      this.startIdleDetection();
 
       const win = getCurrentWindow();
 
-      // Update state initially
       const isMax = await win.isMaximized();
       if (isMax) document.body.classList.add('maximized');
 
-      // Listen for changes (resizing, snapping, etc.)
       await win.onResized(async () => {
         const currentlyMax = await win.isMaximized();
         if (currentlyMax) {
@@ -104,13 +130,22 @@ export class AppComponent implements AfterViewChecked, OnInit {
 
       win.onFocusChanged(({ payload: focused }) => {
         if (focused && this.authStatus === 'Unlocked') {
-          this.triggerFocus();
+          if (this.activeSection === 'tasks') {
+            this.triggerFocus();
+          } else {
+            this.triggerPadEditorFocus();
+          }
         }
       });
     } catch (err) {
       console.error(err);
     }
     this.loadFont();
+  }
+
+  ngOnDestroy() {
+    if (this.autoSaveTimer) clearTimeout(this.autoSaveTimer);
+    if (this.idleCheckInterval) clearInterval(this.idleCheckInterval);
   }
 
   toggleFontSettings() {
@@ -152,6 +187,10 @@ export class AppComponent implements AfterViewChecked, OnInit {
       this.searchInput.nativeElement.focus();
       this.searchNeedsFocus = false;
     }
+    if (this.padEditorNeedsFocus && this.padEditor) {
+      this.padEditor.nativeElement.focus();
+      this.padEditorNeedsFocus = false;
+    }
   }
 
   triggerFocus() {
@@ -166,11 +205,32 @@ export class AppComponent implements AfterViewChecked, OnInit {
     this.searchNeedsFocus = true;
   }
 
+  triggerPadEditorFocus() {
+    this.padEditorNeedsFocus = true;
+  }
+
   @HostListener('window:keydown', ['$event'])
   handleGlobalKeys(event: KeyboardEvent) {
     this.resetIdleTimer(); // Merge activity reset
 
     if (this.authStatus !== 'Unlocked') return;
+
+    // Ctrl + Shift + Space: Switch sections
+    if (event.ctrlKey && event.shiftKey && event.code === 'Space') {
+      event.preventDefault();
+      this.switchSection(this.activeSection === 'tasks' ? 'notepad' : 'tasks');
+      return;
+    }
+
+    // If in notepad section, handle notepad shortcuts then skip task shortcuts
+    if (this.activeSection === 'notepad') {
+      // Ctrl + N: New tab
+      if (event.ctrlKey && event.key.toLowerCase() === 'n') {
+        event.preventDefault();
+        this.createPad();
+      }
+      return;
+    }
 
     if (this.showFontSettings) {
       if (event.key === 'ArrowDown') {
@@ -438,6 +498,21 @@ export class AppComponent implements AfterViewChecked, OnInit {
     }, 10000);
   }
 
+  switchSection(section: 'tasks' | 'notepad') {
+    this.activeSection = section;
+    // Close modals
+    this.showHelp = false;
+    this.showSearch = false;
+    this.showBin = false;
+    this.showFontSettings = false;
+
+    if (section === 'tasks') {
+      this.triggerFocus();
+    } else {
+      this.triggerPadEditorFocus();
+    }
+  }
+
   async unlockVault() {
     if (!this.password.trim()) return;
     try {
@@ -448,7 +523,8 @@ export class AppComponent implements AfterViewChecked, OnInit {
       this.lastActivity = Date.now();
       this.startIdleDetection();
       await this.loadNotes();
-      this.triggerFocus();
+      await this.loadPads();
+      this.triggerPadEditorFocus();
     } catch (err: any) {
       this.errorMessage = err.toString();
     }
@@ -463,6 +539,15 @@ export class AppComponent implements AfterViewChecked, OnInit {
       this.password = '';
       this.selectedNoteId = null;
       this.editingNoteId = null;
+      // Reset notepad state
+      this.pads = [];
+      this.openTabs = [];
+      this.activeTabId = null;
+      this.activePad = null;
+      this.padContent = '';
+      this.lineNumbers = [1];
+      this.activeSection = 'notepad';
+      if (this.autoSaveTimer) clearTimeout(this.autoSaveTimer);
       if (this.idleCheckInterval) clearInterval(this.idleCheckInterval);
     } catch (err) {
       console.error(err);
@@ -643,6 +728,139 @@ export class AppComponent implements AfterViewChecked, OnInit {
     try {
       await invoke('toggle_pin', { id });
       await this.loadNotes();
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  // ===== Notepad Methods =====
+
+  async loadPads() {
+    try {
+      this.pads = await invoke<Pad[]>('get_pads');
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async createPad() {
+    try {
+      const id = await invoke<number>('add_pad', { title: 'Untitled', content: '' });
+      await this.loadPads();
+      this.openTab(id);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  getPadTabTitle(pad: Pad): string {
+    const firstLine = pad.content.split('\n')[0]?.trim();
+    return firstLine || 'Untitled';
+  }
+
+  openTab(padId: number) {
+    const pad = this.pads.find(p => p.id === padId);
+    if (!pad) return;
+
+    if (!this.openTabs.find(t => t.padId === padId)) {
+      this.openTabs.push({ padId, title: this.getPadTabTitle(pad) });
+    }
+
+    this.activeTabId = padId;
+    this.activePad = { ...pad };
+    this.padContent = pad.content;
+    this.updateLineNumbers();
+    this.triggerPadEditorFocus();
+  }
+
+  closeTab(padId: number, event?: MouseEvent) {
+    if (event) event.stopPropagation();
+
+    if (this.activeTabId === padId && this.activePad) {
+      this.savePadNow();
+    }
+
+    this.openTabs = this.openTabs.filter(t => t.padId !== padId);
+
+    if (this.activeTabId === padId) {
+      if (this.openTabs.length > 0) {
+        this.openTab(this.openTabs[this.openTabs.length - 1].padId);
+      } else {
+        this.activeTabId = null;
+        this.activePad = null;
+        this.padContent = '';
+        this.lineNumbers = [1];
+      }
+    }
+  }
+
+  switchTab(padId: number) {
+    if (this.activeTabId === padId) return;
+    if (this.activePad) {
+      this.savePadNow();
+    }
+    this.openTab(padId);
+  }
+
+  onPadContentChange() {
+    this.updateLineNumbers();
+    // Update tab title from first line
+    const tab = this.openTabs.find(t => t.padId === this.activeTabId);
+    if (tab) {
+      const firstLine = this.padContent.split('\n')[0]?.trim();
+      tab.title = firstLine || 'Untitled';
+    }
+    this.schedulePadAutoSave();
+  }
+
+  updateLineNumbers() {
+    const count = this.padContent ? this.padContent.split('\n').length : 1;
+    this.lineNumbers = Array.from({ length: count }, (_, i) => i + 1);
+  }
+
+  onEditorScroll(event: Event) {
+    const editor = event.target as HTMLElement;
+    const gutter = document.querySelector('.line-gutter') as HTMLElement;
+    if (gutter) {
+      gutter.scrollTop = editor.scrollTop;
+    }
+  }
+
+  private schedulePadAutoSave() {
+    if (this.autoSaveTimer) clearTimeout(this.autoSaveTimer);
+    this.autoSaveTimer = setTimeout(() => {
+      this.savePadNow();
+    }, 500);
+  }
+
+  private async savePadNow() {
+    if (!this.activePad) return;
+    const firstLine = this.padContent.split('\n')[0]?.trim();
+    const title = firstLine || 'Untitled';
+    try {
+      await invoke('update_pad', {
+        id: this.activePad.id,
+        title,
+        content: this.padContent
+      });
+      const pad = this.pads.find(p => p.id === this.activePad!.id);
+      if (pad) {
+        pad.title = title;
+        pad.content = this.padContent;
+        pad.updated_at = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      }
+      this.activePad.title = title;
+      this.activePad.content = this.padContent;
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async deletePad(padId: number) {
+    try {
+      await invoke('delete_pad', { id: padId });
+      this.closeTab(padId);
+      await this.loadPads();
     } catch (err) {
       console.error(err);
     }
