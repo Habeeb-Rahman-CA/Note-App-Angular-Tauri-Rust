@@ -152,7 +152,7 @@
 
   <!-- Empty state -->
   <div class="editor-empty" *ngIf="!activePad">
-    <p>Press + to create a new note</p>
+    <p>Create a new note</p>
   </div>
 </div>
 
@@ -161,22 +161,36 @@
   <div class="help-content" (click)="$event.stopPropagation()">
     <h2>Keyboard Shortcuts</h2>
     <div class="shortcut-list">
-      <div class="shortcut-item"><span>Ctrl + Shift + N</span> Open Bilet</div>
-      <div class="shortcut-item"><span>Ctrl + Shift + Space</span> Switch Section</div>
-      <div class="shortcut-item"><span>Ctrl + N</span> New Tab</div>
-      <div class="shortcut-item"><span>Ctrl + A</span> Focus Input</div>
-      <div class="shortcut-item"><span>Ctrl + L</span> Focus List</div>
-      <div class="shortcut-item"><span>Ctrl + F</span> Open Search</div>
-      <div class="shortcut-item"><span>Ctrl + B</span> Open History / Bin</div>
-      <div class="shortcut-item"><span>Ctrl + P</span> Pin / Unpin</div>
-      <div class="shortcut-item"><span>Ctrl + R</span> Restore</div>
-      <div class="shortcut-item"><span>Ctrl + Shift + C</span> Clear All</div>
-      <div class="shortcut-item"><span> ↑ / ↓ </span> Navigate</div>
-      <div class="shortcut-item"><span>Ctrl + E</span> Edit</div>
-      <div class="shortcut-item"><span>Ctrl + S</span> Save</div>
-      <div class="shortcut-item"><span>Ctrl + D</span> Delete</div>
-      <div class="shortcut-item"><span>Enter</span> Confirm Selection / Action</div>
-      <div class="shortcut-item"><span>Esc</span> Cancel / Close Help</div>
+      <!-- App Navigation -->
+      <div class="shortcut-group">
+        <div class="shortcut-group-title">App Navigation</div>
+        <div class="shortcut-item"><span>Ctrl + Shift + Space</span> Switch Section</div>
+        <div class="shortcut-item"><span>Ctrl + F</span> Search</div>
+        <div class="shortcut-item"><span>Ctrl + B</span> History / Bin</div>
+        <div class="shortcut-item"><span>Ctrl + H</span> Help</div>
+        <div class="shortcut-item"><span>Esc</span> Close Modal</div>
+      </div>
+
+      <!-- Notepad -->
+      <div class="shortcut-group">
+        <div class="shortcut-group-title">Notepad</div>
+        <div class="shortcut-item"><span>Ctrl + N</span> New Tab</div>
+      </div>
+
+      <!-- Tasks -->
+      <div class="shortcut-group">
+        <div class="shortcut-group-title">Tasks</div>
+        <div class="shortcut-item"><span>Ctrl + A</span> Focus Input</div>
+        <div class="shortcut-item"><span>Ctrl + L</span> Focus List</div>
+        <div class="shortcut-item"><span> ↑ / ↓ </span> Navigate</div>
+        <div class="shortcut-item"><span>Enter</span> Select / Confirm</div>
+        <div class="shortcut-item"><span>Ctrl + E</span> Edit</div>
+        <div class="shortcut-item"><span>Ctrl + S</span> Save</div>
+        <div class="shortcut-item"><span>Ctrl + D</span> Delete</div>
+        <div class="shortcut-item"><span>Ctrl + P</span> Pin / Unpin</div>
+        <div class="shortcut-item"><span>Ctrl + R</span> Restore Item</div>
+        <div class="shortcut-item"><span>Ctrl + Shift + C</span> Clear All history</div>
+      </div>
     </div>
     <button class="primary" (click)="showHelp = false">Got it</button>
   </div>

@@ -524,6 +524,16 @@ export class AppComponent implements AfterViewChecked, OnInit, OnDestroy {
       this.startIdleDetection();
       await this.loadNotes();
       await this.loadPads();
+
+      // Ensure at least one tab is open on startup
+      if (this.openTabs.length === 0) {
+        if (this.pads.length === 0) {
+          await this.createPad();
+        } else {
+          this.openTab(this.pads[0].id);
+        }
+      }
+
       this.triggerPadEditorFocus();
     } catch (err: any) {
       this.errorMessage = err.toString();
@@ -782,15 +792,14 @@ export class AppComponent implements AfterViewChecked, OnInit, OnDestroy {
 
     this.openTabs = this.openTabs.filter(t => t.padId !== padId);
 
+    if (this.openTabs.length === 0) {
+      // Always keep at least one tab
+      this.createPad();
+      return;
+    }
+
     if (this.activeTabId === padId) {
-      if (this.openTabs.length > 0) {
-        this.openTab(this.openTabs[this.openTabs.length - 1].padId);
-      } else {
-        this.activeTabId = null;
-        this.activePad = null;
-        this.padContent = '';
-        this.lineNumbers = [1];
-      }
+      this.openTab(this.openTabs[this.openTabs.length - 1].padId);
     }
   }
 

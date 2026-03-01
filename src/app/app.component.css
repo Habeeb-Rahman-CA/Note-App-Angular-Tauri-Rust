@@ -540,12 +540,36 @@ button.primary:hover {
   display: none;
 }
 
+.shortcut-group {
+  margin-bottom: 24px;
+}
+
+.shortcut-group:last-child {
+  margin-bottom: 0;
+}
+
+.shortcut-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  opacity: 0.4;
+  margin-bottom: 12px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-color);
+}
+
 .shortcut-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-size: 14px;
   opacity: 0.8;
+  margin-bottom: 8px;
+}
+
+.shortcut-item:last-child {
+  margin-bottom: 0;
 }
 
 .shortcut-item span {
@@ -819,7 +843,7 @@ button.primary:hover {
 .notepad-container {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 38px);
+  height: calc(100vh - 54px);
   overflow: hidden;
 }
 
