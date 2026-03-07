@@ -128,10 +128,10 @@
 
   <!-- Tab Bar -->
   <div class="tab-bar">
-    <div class="tab" *ngFor="let tab of openTabs" (click)="switchTab(tab.padId)"
-      [class.active]="activeTabId === tab.padId">
-      <span class="tab-title">{{ tab.title || 'Untitled' }}</span>
-      <button class="tab-close" (click)="closeTab(tab.padId, $event)">
+    <div class="tab" *ngFor="let pad of openOrderedTabs" (click)="switchTab(pad.id)"
+      [class.active]="activeTabId === pad.id">
+      <span class="tab-title">{{ pad.title || 'Untitled' }}</span>
+      <button class="tab-close" (click)="closeTab(pad.id, $event)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18" />
           <line x1="6" y1="6" x2="18" y2="18" />
@@ -160,6 +160,16 @@
   </div>
 </div>
 
+<!-- Pad Close Confirmation Modal -->
+<div class="help-overlay save-prompt-overlay" *ngIf="isConfirmingPadCloseId"
+  (click)="handlePadCloseModalAction('cancel')">
+  <div class="help-content prompt-content" (click)="$event.stopPropagation()" style="text-align: center;">
+    <h2 style="margin-top: 0; margin-bottom: 24px;">Close Pad?</h2>
+    <p style="margin-bottom: 24px; opacity: 0.8;">What would you like to do with this tab? Saving will download to your
+      files. Deleting moves it to history.</p>
+  </div>
+</div>
+
 <!-- Help Modal -->
 <div class="help-overlay" *ngIf="showHelp" (click)="showHelp = false">
   <div class="help-content" (click)="$event.stopPropagation()">
@@ -179,6 +189,7 @@
       <div class="shortcut-group">
         <div class="shortcut-group-title">Notepad</div>
         <div class="shortcut-item"><span>Ctrl + N</span> New Tab</div>
+        <div class="shortcut-item"><span>Ctrl + S</span> Save File</div>
         <div class="shortcut-item"><span>Ctrl + Space</span> Shift/Cycle Tabs</div>
         <div class="shortcut-item"><span>Ctrl + Shift + D</span> Delete Current Tab</div>
         <div class="shortcut-item"><span>Alt + Shift + ↑/↓</span> Duplicate Line</div>

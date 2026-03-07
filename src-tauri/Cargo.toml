@@ -1,12 +1,12 @@
 [package]
-name = "first-tauri-app"
+name = "bilet"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "A Productivity App"
+authors = ["Habrmnc <habeebrahmanca07@gmail.com>"]
 edition = "2021"
 
 [lib]
-name = "first_tauri_app_lib"
+name = "bilet_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -29,3 +29,5 @@ hex = "0.4"
 base64 = "0.22.1"
 thiserror = "1.0"
 aes-gcm = "0.10.3"
+tauri-plugin-dialog = "2.6.0"
+tauri-plugin-fs = "2.4.5"

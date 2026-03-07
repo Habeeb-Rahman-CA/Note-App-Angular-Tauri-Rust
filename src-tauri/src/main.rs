@@ -37,6 +37,15 @@ struct Pad {
     created_at: String,
     updated_at: String,
     is_deleted: bool,
+    is_open: bool,
+    is_active: bool,
+    tab_index: i32,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Session {
+    active_tab_id: Option<i64>,
+    open_tabs: String, // JSON string of OpenTab objects
 }
 
 // Internal structure to handle DB + Key
@@ -127,11 +136,18 @@ async fn unlock_db(
             content_nonce BLOB NOT NULL,
             content_ciphertext BLOB NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            is_deleted BOOLEAN DEFAULT 0,
+            is_open BOOLEAN DEFAULT 0,
+            is_active BOOLEAN DEFAULT 0,
+            tab_index INTEGER DEFAULT 0
         )",
         [],
     )
     .map_err(|e| e.to_string())?;
+
+    // Drop secure_session table if it exists (cleaning up previous step's approach)
+    let _ = conn.execute("DROP TABLE IF EXISTS secure_session", []);
 
     // Migration: Add columns if they don't exist
     let mut has_is_pinned = false;
@@ -179,7 +195,10 @@ async fn unlock_db(
         );
     }
 
-    let mut has_pad_is_deleted = false;
+    let mut has_is_open = false;
+    let mut has_is_active = false;
+    let mut has_tab_index = false;
+
     {
         let mut stmt = conn
             .prepare("PRAGMA table_info(secure_pads)")
@@ -187,14 +206,33 @@ async fn unlock_db(
         let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
         while let Some(row) = rows.next().map_err(|e| e.to_string())? {
             let name: String = row.get(1).map_err(|e| e.to_string())?;
-            if name == "is_deleted" {
-                has_pad_is_deleted = true;
+            if name == "is_open" {
+                has_is_open = true;
+            }
+            if name == "is_active" {
+                has_is_active = true;
+            }
+            if name == "tab_index" {
+                has_tab_index = true;
             }
         }
     }
-    if !has_pad_is_deleted {
+
+    if !has_is_open {
         let _ = conn.execute(
-            "ALTER TABLE secure_pads ADD COLUMN is_deleted BOOLEAN DEFAULT 0",
+            "ALTER TABLE secure_pads ADD COLUMN is_open BOOLEAN DEFAULT 0",
+            [],
+        );
+    }
+    if !has_is_active {
+        let _ = conn.execute(
+            "ALTER TABLE secure_pads ADD COLUMN is_active BOOLEAN DEFAULT 0",
+            [],
+        );
+    }
+    if !has_tab_index {
+        let _ = conn.execute(
+            "ALTER TABLE secure_pads ADD COLUMN tab_index INTEGER DEFAULT 0",
             [],
         );
     }
@@ -411,7 +449,7 @@ fn get_pads(state: State<'_, DbState>) -> Result<Vec<Pad>, String> {
     let cipher = Aes256Gcm::new(key.into());
 
     let mut stmt = conn
-        .prepare("SELECT id, title_nonce, title_ciphertext, content_nonce, content_ciphertext, created_at, updated_at, is_deleted FROM secure_pads WHERE is_deleted = 0 ORDER BY updated_at DESC")
+        .prepare("SELECT id, title_nonce, title_ciphertext, content_nonce, content_ciphertext, created_at, updated_at, is_deleted, is_open, is_active, tab_index FROM secure_pads WHERE is_deleted = 0 ORDER BY tab_index ASC")
         .map_err(|e| e.to_string())?;
 
     let pad_iter = stmt
@@ -424,6 +462,9 @@ fn get_pads(state: State<'_, DbState>) -> Result<Vec<Pad>, String> {
             let created_at: String = row.get(5).unwrap_or_default();
             let updated_at: String = row.get(6).unwrap_or_default();
             let is_deleted: bool = row.get(7).unwrap_or(false);
+            let is_open: bool = row.get(8).unwrap_or(false);
+            let is_active: bool = row.get(9).unwrap_or(false);
+            let tab_index: i32 = row.get(10).unwrap_or(0);
 
             let title_nonce = Nonce::from_slice(&title_nonce_bytes);
             let title_dec = cipher
@@ -445,6 +486,9 @@ fn get_pads(state: State<'_, DbState>) -> Result<Vec<Pad>, String> {
                 created_at,
                 updated_at,
                 is_deleted,
+                is_open,
+                is_active,
+                tab_index,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -474,8 +518,11 @@ fn add_pad(title: String, content: String, state: State<'_, DbState>) -> Result<
         .encrypt(Nonce::from_slice(&cn), content.as_bytes())
         .map_err(|e| format!("Encryption failed: {}", e))?;
 
+    // Unset other active pads
+    let _ = conn.execute("UPDATE secure_pads SET is_active = 0", []);
+
     conn.execute(
-        "INSERT INTO secure_pads (title_nonce, title_ciphertext, content_nonce, content_ciphertext, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        "INSERT INTO secure_pads (title_nonce, title_ciphertext, content_nonce, content_ciphertext, created_at, updated_at, is_open, is_active, tab_index) VALUES (?1, ?2, ?3, ?4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, 1, (SELECT COALESCE(MAX(tab_index), 0) + 1 FROM secure_pads))",
         params![tn.to_vec(), title_ct, cn.to_vec(), content_ct],
     ).map_err(|e| e.to_string())?;
 
@@ -534,7 +581,7 @@ fn get_bin_pads(state: State<'_, DbState>) -> Result<Vec<Pad>, String> {
     let cipher = Aes256Gcm::new(key.into());
 
     let mut stmt = conn
-        .prepare("SELECT id, title_nonce, title_ciphertext, content_nonce, content_ciphertext, created_at, updated_at, is_deleted FROM secure_pads WHERE is_deleted = 1 ORDER BY updated_at DESC")
+        .prepare("SELECT id, title_nonce, title_ciphertext, content_nonce, content_ciphertext, created_at, updated_at, is_deleted, is_open, is_active, tab_index FROM secure_pads WHERE is_deleted = 1 ORDER BY updated_at DESC")
         .map_err(|e| e.to_string())?;
 
     let pad_iter = stmt
@@ -547,6 +594,9 @@ fn get_bin_pads(state: State<'_, DbState>) -> Result<Vec<Pad>, String> {
             let created_at: String = row.get(5).unwrap_or_default();
             let updated_at: String = row.get(6).unwrap_or_default();
             let is_deleted: bool = row.get(7).unwrap_or(false);
+            let is_open: bool = row.get(8).unwrap_or(false);
+            let is_active: bool = row.get(9).unwrap_or(false);
+            let tab_index: i32 = row.get(10).unwrap_or(0);
 
             let title_nonce = Nonce::from_slice(&title_nonce_bytes);
             let title_dec = cipher
@@ -568,6 +618,9 @@ fn get_bin_pads(state: State<'_, DbState>) -> Result<Vec<Pad>, String> {
                 created_at,
                 updated_at,
                 is_deleted,
+                is_open,
+                is_active,
+                tab_index,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -623,10 +676,81 @@ fn toggle_maximize(window: tauri::Window) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn save_file_to_local(path: String, content: String) -> Result<String, String> {
+    std::fs::write(&path, content).map_err(|e| e.to_string())?;
+    Ok("Saved".to_string())
+}
+
+#[tauri::command]
 fn lock_vault(state: State<'_, DbState>) -> Result<String, String> {
     let mut db_lock = state.0.lock().unwrap();
     *db_lock = None;
     Ok("Locked".to_string())
+}
+
+#[tauri::command]
+fn update_pad_metadata(
+    id: i64,
+    is_open: Option<bool>,
+    is_active: Option<bool>,
+    tab_index: Option<i32>,
+    state: State<'_, DbState>,
+) -> Result<String, String> {
+    let db_lock = state.0.lock().unwrap();
+    let (conn, _) = db_lock.as_ref().ok_or("Vault is locked")?;
+
+    if let Some(active) = is_active {
+        if active {
+            // Unset other active pads
+            conn.execute("UPDATE secure_pads SET is_active = 0", [])
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
+    let mut query = String::from("UPDATE secure_pads SET ");
+    let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+    let mut updates = Vec::new();
+
+    if let Some(open) = is_open {
+        updates.push("is_open = ?");
+        params_vec.push(Box::new(open));
+    }
+    if let Some(active) = is_active {
+        updates.push("is_active = ?");
+        params_vec.push(Box::new(active));
+    }
+    if let Some(index) = tab_index {
+        updates.push("tab_index = ?");
+        params_vec.push(Box::new(index));
+    }
+
+    if updates.is_empty() {
+        return Ok("No updates".to_string());
+    }
+
+    query.push_str(&updates.join(", "));
+    query.push_str(" WHERE id = ?");
+    params_vec.push(Box::new(id));
+
+    // Convert Vec<Box<dyn ToSql>> to something rusqlite accepts
+    let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|b| b.as_ref()).collect();
+
+    conn.execute(&query, rusqlite::params_from_iter(params_refs))
+        .map_err(|e| e.to_string())?;
+
+    Ok("Metadata Updated".to_string())
+}
+
+#[tauri::command]
+fn save_session(_session: Session, _state: State<'_, DbState>) -> Result<String, String> {
+    // Deprecated - metadata is now in pads table
+    Ok("Deprecated".to_string())
+}
+
+#[tauri::command]
+fn get_session(_state: State<'_, DbState>) -> Result<Option<Session>, String> {
+    // Deprecated - metadata is now in pads table
+    Ok(None)
 }
 
 fn main() {
@@ -636,10 +760,13 @@ fn main() {
             MacosLauncher::LaunchAgent,
             Some(vec![]),
         ))
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             check_auth_status,
             unlock_db,
+            save_file_to_local,
             lock_vault,
             get_notes,
             get_bin_notes,
@@ -658,7 +785,10 @@ fn main() {
             get_bin_pads,
             restore_pad,
             permanent_delete_pad,
-            clear_pad_bin
+            clear_pad_bin,
+            save_session,
+            get_session,
+            update_pad_metadata
         ])
         .setup(|app| {
             let ctrl_shift_n =

@@ -598,6 +598,61 @@ button.primary:hover {
   margin-bottom: 20px;
 }
 
+/* Prompt Specifics */
+.prompt-content {
+  max-width: 400px;
+  text-align: center;
+}
+
+.prompt-content h2 {
+  margin-bottom: 15px;
+}
+
+.prompt-content p {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-color);
+  opacity: 0.8;
+  margin-bottom: 24px;
+}
+
+.prompt-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.action-btn {
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--bg-color);
+  color: var(--text-color);
+  transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+  background: var(--hover-color);
+}
+
+.save-btn:hover {
+  background: var(--text-color);
+  color: var(--bg-color);
+}
+
+.delete-btn {
+  color: #ff4444;
+  border-color: #ff444455;
+}
+
+.delete-btn:hover {
+  background: #ff4444;
+  color: white;
+}
+
 .search-input-wrapper input {
   font-size: 16px;
   padding: 12px 16px;
